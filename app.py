@@ -428,6 +428,7 @@ if session["submit"] and session["dataframe"] is not None:
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="initial-scale=1, width=device-width" />
+                <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
                 <style>
                     body {{ margin:0; padding:0; }}
                     #wrap {{ width:100%; height:660px; }}
