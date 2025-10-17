@@ -423,101 +423,84 @@ if session["submit"] and session["dataframe"] is not None:
         st.warning("KAKAOMAP JS API KEY를 확인해주세요.")
     else:
         html(f"""
-        <!doctype html>
-        <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="initial-scale=1, width=device-width" />
-          <style>
-            body {{ margin:0; padding:0; }}
-            #wrap {{ width:100%; height:660px; }}
-            #map {{ width:100%; height:100%; margin:0 auto; }}
-            .label {{ padding:4px 8px; background:#fff; font-size:14px; }}
-          </style>
-        </head>
-        <body>
-          <div id="wrap">
-            <div id="map"></div>
-          </div>
+            <!doctype html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="initial-scale=1, width=device-width" />
+                <style>
+                    body {{ margin:0; padding:0; }}
+                    #wrap {{ width:100%; height:660px; }}
+                    #map {{ width:100%; height:100%; margin:0 auto; }}
+                    .label {{ padding:4px 8px; background:#fff; font-size:14px; }}
+                </style>
+                <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={kakao_key}&autoload=false"></script>
+            </head>
+            <body>
+                <div id="wrap">
+                <div id="map"></div>
+                </div>
 
-          <script>
-            // 파이썬에서 넘어온 데이터
-            const stations = {json.dumps(data_json, ensure_ascii=False)};
-            const data = JSON.parse(stations);
+                <script>
+                    const stations = {json.dumps(data_json, ensure_ascii=False)}; 
+                    const data = JSON.parse(stations); 
+                    // const data = {json.dumps(df.to_dict('records'), ensure_ascii=False)};
 
-            // ✅ Kakao SDK를 '동적으로' 주입하고, 로드가 끝난 뒤에만 지도 초기화
-            (function loadKakaoAndInit() {{
-              const KAKAO_SDK_URL = "https://dapi.kakao.com/v2/maps/sdk.js?appkey={kakao_key}&autoload=false";
+                    // 카카오 지도맵 초기위치 및 줌 레벨 설정
+                    kakao.maps.load(function() {{
+                        const container = document.getElementById('map');
+                        const options = {{
+                            center: new kakao.maps.LatLng({lat}, {lon}),
+                            level: 6
+                    }};
+                    const map = new kakao.maps.Map(container, options);
 
-              function initMap() {{
-                // SDK 내부 로더 (지도 API 준비 완료시 콜백)
-                kakao.maps.load(function() {{
-                  const container = document.getElementById('map');
-                  const options = {{
-                    center: new kakao.maps.LatLng({lat}, {lon}),
-                    level: 6
-                  }};
-                  const map = new kakao.maps.Map(container, options);
+                    // 인포윈도우
+                    const iwContent = '<div style="padding:5px;">현위치</div>', 
+                    iwPosition = new kakao.maps.LatLng({lat}, {lon}), 
+                    iwRemoveable = false; 
+                    var infowindow = new kakao.maps.InfoWindow({{
+                        map: map, 
+                        position: iwPosition,
+                        content: iwContent,
+                        removable: iwRemoveable
+                    }});
 
-                  // 현위치 인포윈도우
-                  const iwPosition = new kakao.maps.LatLng({lat}, {lon});
-                  new kakao.maps.InfoWindow({{
-                    map: map,
-                    position: iwPosition,
-                    content: '<div style="padding:5px;">현위치</div>',
-                    removable: false
-                  }});
+                    // 지도에 표시할 원(반경 범위)
+                    var circle = new kakao.maps.Circle({{
+                        center: new kakao.maps.LatLng({lat}, {lon}),
+                        radius: {radius},
+                        strokeWeight: 3,
+                        strokeColor: '#75B8FA',
+                        strokeOpacity: 1,
+                        strokeStyle: 'dashed',
+                        fillColor: '#CFE7FF',
+                        fillOpacity: 0.5
+                    }}); 
+                    circle.setMap(map); 
 
-                  // 반경 표시
-                  new kakao.maps.Circle({{
-                    center: iwPosition,
-                    radius: {radius},
-                    strokeWeight: 3,
-                    strokeColor: '#75B8FA',
-                    strokeOpacity: 1,
-                    strokeStyle: 'dashed',
-                    fillColor: '#CFE7FF',
-                    fillOpacity: 0.5
-                  }}).setMap(map);
+                    // 마커 + 인포윈도우
+                    data.forEach((d) => {{
+                        const pos = new kakao.maps.LatLng(d.LAT_WGS84, d.LON_WGS84);
+                        const marker = new kakao.maps.Marker({{ position: pos, map }});
+                        const parts = d.OS_NM.trim().split(/\s+/);
+                        const nameHtml = parts.map(p => `<div>${{p}}</div>`).join("");
+                        const content = 
+                        `<div class="label">
+                            <div style="text-align:center;">
+                            <div><b>${{nameHtml}}</b></div>
+                            <div>${{d.PRICE.toLocaleString()}}원</div>
+                        </div>`;
+                        const infowindow = new kakao.maps.InfoWindow({{ content }});
 
-                  // 주유소 마커 + 인포윈도우
-                  data.forEach((d) => {{
-                    const pos = new kakao.maps.LatLng(d.LAT_WGS84, d.LON_WGS84);
-                    const marker = new kakao.maps.Marker({{ position: pos, map }});
-                    const parts = String(d.OS_NM || '').trim().split(/\\s+/);
-                    const nameHtml = parts.map(p => `<div>${{p}}</div>`).join("");
-                    const content =
-                      `<div class="label">
-                         <div style="text-align:center;">
-                           <div><b>${{nameHtml}}</b></div>
-                           <div>${{Number(d.PRICE).toLocaleString()}}원</div>
-                         </div>
-                       </div>`;
-                    const iw = new kakao.maps.InfoWindow({{ content }});
-                    kakao.maps.event.addListener(marker, 'mouseover', () => iw.open(map, marker));
-                    kakao.maps.event.addListener(marker, 'mouseout',  () => iw.close());
-                  }});
+                        kakao.maps.event.addListener(marker, 'mouseover', () => infowindow.open(map, marker));
+                        kakao.maps.event.addListener(marker, 'mouseout',  () => infowindow.close());
+                    }});
                 }});
-              }}
-
-              // 이미 kakao가 있으면 바로 초기화
-              if (window.kakao && window.kakao.maps) {{
-                initMap();
-                return;
-              }}
-
-              // 없으면 SDK 스크립트를 동적으로 붙이고, 로드 후 초기화
-              const script = document.createElement('script');
-              script.src = KAKAO_SDK_URL;
-              script.async = true;
-              script.onload = initMap;
-              script.onerror = () => console.error("Kakao Maps SDK 로드 실패");
-              document.head.appendChild(script);
-            }})();
-          </script>
-        </body>
-        </html>
-        """, height=500)
+              </script>
+            </body>
+            </html>
+            """, height=500)
 
     df["PRICE"] = pd.to_numeric(df["PRICE"]).map(lambda x: int(x))  # 형변환
     df["DISTANCE"] = pd.to_numeric(df["DISTANCE"]).map(lambda x: int(x))  # 형변환
