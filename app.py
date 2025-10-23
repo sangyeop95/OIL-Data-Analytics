@@ -569,7 +569,7 @@ if session["submit"] and session["dataframe"] is not None:
     df = pd.DataFrame([
         {"area": "반경 내 주유소 최저가", "price": price_min},
         {"area": "반경 내 주유소 평균가", "price": price_avg},
-        {"area": "반경 내 주유소 최대가", "price": price_max},
+        {"area": "반경 내 주유소 최고가", "price": price_max},
         {"area": f"{sido} 평균", "price": price_sido},
         {"area": f"{sido} {sigun} 평균", "price": price_sigun}
     ])
@@ -586,7 +586,8 @@ if session["submit"] and session["dataframe"] is not None:
         color_discrete_map={
             "지역 평균": "#F59E0B",
             "반경 내 주유소": "#2563EB"
-        }
+        },
+        labels = {"구분": ''},
     )
     fig.update_xaxes(title=None, range=[xmin*0.9, xmax])
     fig.update_yaxes(title=None)
