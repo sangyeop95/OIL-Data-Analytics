@@ -558,27 +558,27 @@ if session["submit"] and session["dataframe"] is not None:
             price_sido = int(i["PRICE"])
     price_sigun = int(avg_price_sigun(sido_code, sigun_code, oil)[0]["PRICE"])
 
-    df = session["dataframe"]
-    price_min = int(df["PRICE"].min())
-    price_avg = int(df["PRICE"].mean())
-    price_max = int(df["PRICE"].max())
+    df_graph = session["dataframe"]
+    price_min = int(df_graph["PRICE"].min())
+    price_avg = int(df_graph["PRICE"].mean())
+    price_max = int(df_graph["PRICE"].max())
 
     def group_label(n: str) -> str:
         return "반경 내 주유소" if n.startswith("반경 내 주유소") else "지역 평균"
 
-    df = pd.DataFrame([
+    df_graph = pd.DataFrame([
         {"area": "반경 내 주유소 최저가", "price": price_min},
         {"area": "반경 내 주유소 평균가", "price": price_avg},
         {"area": "반경 내 주유소 최고가", "price": price_max},
         {"area": f"{sido} 평균", "price": price_sido},
         {"area": f"{sido} {sigun} 평균", "price": price_sigun}
     ])
-    df["구분"] = df["area"].apply(group_label)
+    df_graph["구분"] = df_graph["area"].apply(group_label)
 
-    xmin = float(df["price"].min())
-    xmax = float(df["price"].max())
+    xmin = float(df_graph["price"].min())
+    xmax = float(df_graph["price"].max())
     fig = px.bar(
-        df,
+        df_graph,
         x="price",
         y="area",
         orientation="h",
