@@ -1,8 +1,7 @@
 # from streamlit_folium import st_folium
 # from streamlit_js_eval import get_geolocation
-import os
-
 from streamlit.components.v1 import html
+from streamlit_cookies_manager import CookieManager
 import folium
 import plotly.graph_objects as go
 import plotly.express as px
@@ -31,26 +30,25 @@ st.title("유가 정보 통합조회")
 # --------------------------------------------
 
 
-if "news" not in st.session_state:
-    st.session_state["news"] = None
-if "news_btn_run_lock" not in st.session_state:
-    st.session_state["news_btn_run_lock"] = False
+cookies = CookieManager()
+if not cookies.ready():
+    st.stop()
 
-news_btn = st.button("AI뉴스 받아보기", type="primary", disabled=st.session_state["news_btn_run_lock"])
-if news_btn and st.session_state["news"] is None:
+news_btn = st.button("AI뉴스 받아보기", type="primary")
+if news_btn:
     with st.spinner("1~2분정도 소요됩니다..."):
         if os.getenv("OPENAI_API_KEY"):
             result = run_pipeline(rss="구글뉴스",
                                   max_items_per_feed=20,
                                   k=8,
-                                  lookback_days=5)
-            st.session_state["news"] = result
-            st.session_state["news_btn_run_lock"] = True
+                                  lookback_days=7)
+            cookies["news"] = result
+            cookies.save()
         else:
-            st.session_state["news"] = "**OPEN API KEY를 확인해주세요**"
+            cookies["news"] = "**API KEY를 확인해주세요.**"
         st.rerun()
-if st.session_state["news"]:
-    st.markdown(st.session_state["news"])
+if "news" in cookies:
+    st.markdown(cookies.get("news"))
 
 
 # --------------------------------------------
@@ -408,6 +406,7 @@ if session["submit"] and session["dataframe"] is not None:
 
     lon, lat = session["lon"], session["lat"]
     radius = session["radius"]
+    oil = session["oil"]
     sort = session["sort"]
     df = session["dataframe"]
     data_json = df.to_json(orient="records", force_ascii=False)
@@ -468,7 +467,7 @@ if session["submit"] and session["dataframe"] is not None:
                     }});
 
                     // 지도에 표시할 원(반경 범위)
-                    var circle = new kakao.maps.Circle({{
+                    const circle = new kakao.maps.Circle({{
                         center: new kakao.maps.LatLng({lat}, {lon}),
                         radius: {radius},
                         strokeWeight: 3,
@@ -542,5 +541,58 @@ if session["submit"] and session["dataframe"] is not None:
 
     df.index = pd.RangeIndex(1, len(df)+1)
     st.dataframe(df.iloc[:, 1:])
+
+    district = xy_to_district(lon, lat)
+    sido = district[1]["region_1depth_name"]
+    sigun = district[1]["region_2depth_name"]
+
+    sido_code = bidict(get_opinet_region_code()).inv[sido]
+    sigun_code = get_opinet_region_code(sido_code)
+    for i in sigun_code:
+        if i["AREA_NM"] == sigun:
+            sigun_code = i["AREA_CD"]
+
+    price_sido = 0
+    for i in avg_price_sido():
+        if i["SIDOCD"] == sido_code and i["PRODCD"] == oil:
+            price_sido = int(i["PRICE"])
+    price_sigun = int(avg_price_sigun(sido_code, sigun_code, oil)[0]["PRICE"])
+
+    df = session["dataframe"]
+    price_min = int(df["PRICE"].min())
+    price_avg = int(df["PRICE"].mean())
+    price_max = int(df["PRICE"].max())
+
+    def group_label(n: str) -> str:
+        return "반경 내 주유소" if n.startswith("반경 내 주유소") else "지역 평균"
+
+    df = pd.DataFrame([
+        {"area": "반경 내 주유소 최저가", "price": price_min},
+        {"area": "반경 내 주유소 평균가", "price": price_avg},
+        {"area": "반경 내 주유소 최대가", "price": price_max},
+        {"area": f"{sido} 평균", "price": price_sido},
+        {"area": f"{sido} {sigun} 평균", "price": price_sigun}
+    ])
+    df["구분"] = df["area"].apply(group_label)
+
+    xmin = float(df["price"].min())
+    xmax = float(df["price"].max())
+    fig = px.bar(
+        df,
+        x="price",
+        y="area",
+        orientation="h",
+        color="구분",
+        color_discrete_map={
+            "지역 평균": "#F59E0B",
+            "반경 내 주유소": "#2563EB"
+        }
+    )
+    fig.update_xaxes(title=None, range=[xmin*0.9, xmax])
+    fig.update_yaxes(title=None)
+    fig.update_traces(hovertemplate="%{x:,}원<extra></extra>")
+    fig.update_layout(uirevision="oil-price-graph")
+    st.plotly_chart(fig, use_container_width=True)
+
 elif session["submit"] and session["dataframe"] is None:
     st.info("반경내 주유소가 없습니다.")

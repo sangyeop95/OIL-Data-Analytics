@@ -62,15 +62,18 @@ def get_opinet_region_info() -> dict:
     return region_dict
 
 @st.cache_data(show_spinner=False)
-def get_opinet_region_code() -> dict:
+def get_opinet_region_code(area: str = None) -> dict:
     """
     지역 코드 반환
     ex) 01: 서울 => 01: 서울특별시
+    area 값으로 해당 시도의 시군구 행정구역 코드 반환
+    ex) 0101: 종로구, 0102: 중구
     """
     url = f"{OPINET_API_BASE_URL}/areaCode.do"
     params = {
         "out": "json",
-        "code": _require_opinet_key()
+        "code": _require_opinet_key(),
+        "area": area
     }
     try:
         response = requests.get(url, params=params, timeout=10)
@@ -80,6 +83,9 @@ def get_opinet_region_code() -> dict:
 
     region_code_dict = {}
     oils = response.json()["RESULT"]["OIL"]
+    if area is not None:
+        return oils
+
     for area in oils:
         region_code_dict[area["AREA_CD"]] = get_opinet_region_info().get(area["AREA_NM"])
     return region_code_dict
@@ -90,10 +96,10 @@ def get_opinet_station_code() -> dict:
         "GSC": "GS칼텍스",
         "HDO": "현대오일뱅크",
         "SOL": "S-OIL",
-        "RTO": "알뜰주유소(전체)",
-        "RTE": "알뜰주유소(자영)",
-        "RTX": "알뜰주유소(고속)",
-        "NHO": "알뜰주유소(농협)",
+        "RTO": "알뜰",
+        "RTE": "알뜰(자영)",
+        "RTX": "알뜰(고속)",
+        "NHO": "알뜰(농협)",
         "ETC": "자가상표",
         "E1G": "E1",
         "SKG": "SK가스"
@@ -152,6 +158,29 @@ def avg_price_sido() -> list[dict]:
         else:
             oil["lon"] = 0
             oil["lat"] = 0
+    return oils
+
+@st.cache_data(show_spinner=False)
+def avg_price_sigun(sido: str,
+                    sigun: str,
+                    oil: str) -> list[dict]:
+    """해당 시도의 시군구별 주유소 평균가격 조회"""
+    o = bidict(get_opinet_oil_code())
+    url = f"{OPINET_API_BASE_URL}/avgSigunPrice.do"
+    params = {
+        "out": "json",
+        "code": _require_opinet_key(),
+        "sido": sido,
+        "sigun": sigun,
+        "prodcd": o.inv[oil]
+    }
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise("avg_price_all_period_search() ERROR: ", e)
+
+    oils = response.json()["RESULT"]["OIL"]
     return oils
 
 @st.cache_data(show_spinner=False)
@@ -313,6 +342,27 @@ def address_to_gis(addr: str) -> tuple[float, float]:
         return gis[0]["x"], gis[0]["y"]
     else:
         return None
+
+@st.cache_data(show_spinner=False)
+def xy_to_district(x: float, y: float) -> list[dict]:
+    """(카카오맵 API) 경도, 위도값으로 행정구역 반환"""
+    url = f"{KAKAO_API_BASE_URL}/geo/coord2regioncode.json"
+    headers = {"Authorization": "KakaoAK " + _require_kakao_rest_key()}
+    params = {
+        "x": x,
+        "y": y
+    }
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise("addr_to_gis() ERROR: ", e)
+
+    district = response.json().get("documents", [])
+    for d in district:
+        if d["region_1depth_name"] == "강원특별자치도":
+            d["region_1depth_name"] = "강원도"
+    return district
 
 @st.cache_data(show_spinner=False)
 def station_info_search(station_id: str) -> list[dict]:
