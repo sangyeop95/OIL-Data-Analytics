@@ -178,7 +178,7 @@ def avg_price_sigun(sido: str,
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        raise("avg_price_all_period_search() ERROR: ", e)
+        raise("avg_price_sigun() ERROR: ", e)
 
     oils = response.json()["RESULT"]["OIL"]
     return oils
@@ -356,7 +356,7 @@ def xy_to_district(x: float, y: float) -> list[dict]:
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        raise("addr_to_gis() ERROR: ", e)
+        raise("xy_to_district() ERROR: ", e)
 
     district = response.json().get("documents", [])
     for d in district:
